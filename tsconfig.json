@@ -1,12 +1,24 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
   "compilerOptions": {
+    "incremental": true,
     "target": "ES2022",
-    "lib": ["ES2022"],
+    "jsx": "preserve",
+    "lib": ["dom", "dom.iterable", "ES2022"],
+    "baseUrl": ".",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["src/*"]
+    },
     "resolveJsonModule": true,
     "types": ["bun-types", "node"],
+    "allowJs": true,
     "strict": true,
     "noEmit": true,
     "allowSyntheticDefaultImports": true,
@@ -15,6 +27,13 @@
     "verbatimModuleSyntax": false,
     "skipLibCheck": true
   },
-  "include": ["scripts/**/*.ts", "**/*.ts", "scripts/spike/xraycli/tsconfig.json"],
+  "include": [
+    "next-env.d.ts",
+    ".next/types/**/*.ts",
+    "scripts/**/*.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    "scripts/spike/xraycli/tsconfig.json"
+  ],
   "exclude": ["node_modules", ".backups"]
 }

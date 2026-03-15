@@ -27,6 +27,12 @@ export default antfu({
     '.github/**',
     // Legacy CLI files (backup)
     'cli/legacy/**',
+    // Auto-generated types from Supabase CLI/MCP
+    'src/types/supabase.ts',
+    // Backend scaffolding for upcoming Next.js app setup
+    'middleware.ts',
+    'src/lib/supabase/**',
+    'src/contexts/**',
   ],
 
   // Custom rules
