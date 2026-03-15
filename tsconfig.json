@@ -3,7 +3,7 @@
   "compilerOptions": {
     "incremental": true,
     "target": "ES2022",
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "lib": ["dom", "dom.iterable", "ES2022"],
     "baseUrl": ".",
     "module": "ESNext",
@@ -33,7 +33,8 @@
     "scripts/**/*.ts",
     "**/*.ts",
     "**/*.tsx",
-    "scripts/spike/xraycli/tsconfig.json"
+    "scripts/spike/xraycli/tsconfig.json",
+    ".next/dev/types/**/*.ts"
   ],
   "exclude": ["node_modules", ".backups"]
 }
