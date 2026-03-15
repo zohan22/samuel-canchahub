@@ -1,0 +1,1219 @@
+openapi: 3.0.3
+info:
+  title: Canchahub API
+  version: 1.0.0
+  description: >-
+    API del MVP de Canchahub para discovery, reservas y pago online de canchas
+    deportivas en Sucre, Bolivia.
+servers:
+  - url: http://localhost:3000
+    description: Development
+  - url: https://staging.canchahub.bo
+    description: Staging
+  - url: https://api.canchahub.bo
+    description: Production
+tags:
+  - name: Auth
+  - name: Courts
+  - name: Bookings
+  - name: Payments
+  - name: Owner
+  - name: Admin
+  - name: Notifications
+paths:
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Registrar usuario nuevo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              email: diego@example.com
+              password: Secret123!
+              fullName: Diego Rojas
+      responses:
+        '201':
+          description: Usuario creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Iniciar sesion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: diego@example.com
+              password: Secret123!
+      responses:
+        '200':
+          description: Login exitoso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/auth/forgot-password:
+    post:
+      tags: [Auth]
+      summary: Solicitar recuperacion de password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: Solicitud procesada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BasicSuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/auth/reset-password:
+    post:
+      tags: [Auth]
+      summary: Confirmar cambio de password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resetToken, newPassword]
+              properties:
+                resetToken:
+                  type: string
+                  minLength: 20
+                newPassword:
+                  type: string
+                  minLength: 8
+                  maxLength: 72
+      responses:
+        '200':
+          description: Password actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BasicSuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/courts:
+    get:
+      tags: [Courts]
+      summary: Buscar canchas con filtros
+      parameters:
+        - in: query
+          name: sport
+          schema:
+            type: string
+        - in: query
+          name: zone
+          schema:
+            type: string
+        - in: query
+          name: priceMin
+          schema:
+            type: number
+            format: float
+            minimum: 0
+        - in: query
+          name: priceMax
+          schema:
+            type: number
+            format: float
+            minimum: 0
+        - in: query
+          name: date
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 12
+      responses:
+        '200':
+          description: Lista de canchas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourtSearchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/courts/{courtId}:
+    get:
+      tags: [Courts]
+      summary: Obtener detalle de cancha
+      parameters:
+        - $ref: '#/components/parameters/CourtIdParam'
+      responses:
+        '200':
+          description: Detalle de cancha
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourtDetailResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/courts/{courtId}/availability:
+    get:
+      tags: [Courts]
+      summary: Obtener disponibilidad por slots
+      parameters:
+        - $ref: '#/components/parameters/CourtIdParam'
+        - in: query
+          name: date
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Slots para fecha consultada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvailabilityResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/bookings:
+    post:
+      tags: [Bookings]
+      summary: Crear reserva en estado pending_payment
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBookingRequest'
+            example:
+              courtId: 356f9b22-550c-4ba6-8c4d-12931c6bc9ae
+              startAt: '2026-03-30T20:00:00Z'
+              endAt: '2026-03-30T21:00:00Z'
+      responses:
+        '201':
+          description: Reserva creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Conflicto por slot no disponible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/bookings/me:
+    get:
+      tags: [Bookings]
+      summary: Listar reservas del usuario autenticado
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending_payment, confirmed, cancelled, in_progress, completed, no_show]
+      responses:
+        '200':
+          description: Reservas del player
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Booking'
+                  error:
+                    $ref: '#/components/schemas/NullableErrorObject'
+                required: [success, data, error]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/bookings/{bookingId}/cancel:
+    post:
+      tags: [Bookings]
+      summary: Cancelar reserva aplicando politica moderada
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/BookingIdParam'
+      responses:
+        '200':
+          description: Reserva cancelada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancelBookingResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/payments:
+    post:
+      tags: [Payments]
+      summary: Procesar pago online completo de una reserva
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaymentRequest'
+            example:
+              bookingId: 16044d3a-c7d3-4c4a-b96a-f49a1f80f2d0
+              paymentMethodToken: tok_mock_visa_001
+              idempotencyKey: 8cf645a8-1639-4f7d-b8f0-c3fd92fb6289
+      responses:
+        '201':
+          description: Resultado de pago
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/payments/{paymentId}:
+    get:
+      tags: [Payments]
+      summary: Consultar estado de pago
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PaymentIdParam'
+      responses:
+        '200':
+          description: Estado de pago
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Payment'
+                  error:
+                    $ref: '#/components/schemas/NullableErrorObject'
+                required: [success, data, error]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/owner/onboarding-requests:
+    post:
+      tags: [Owner]
+      summary: Crear solicitud de onboarding de owner
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingRequestCreate'
+      responses:
+        '201':
+          description: Solicitud creada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/OnboardingRequest'
+                  error:
+                    $ref: '#/components/schemas/NullableErrorObject'
+                required: [success, data, error]
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/owner/courts/{courtId}/availability:
+    put:
+      tags: [Owner]
+      summary: Actualizar disponibilidad y precio por franja
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CourtIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AvailabilityUpdateRequest'
+      responses:
+        '200':
+          description: Disponibilidad actualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BasicSuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/owner/bookings:
+    get:
+      tags: [Owner]
+      summary: Listar reservas asociadas al owner
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: dateFrom
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: dateTo
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: status
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Reservas del owner
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Booking'
+                  error:
+                    $ref: '#/components/schemas/NullableErrorObject'
+                required: [success, data, error]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/admin/onboarding-requests:
+    get:
+      tags: [Admin]
+      summary: Listar solicitudes de onboarding
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Solicitudes listadas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OnboardingRequest'
+                  error:
+                    $ref: '#/components/schemas/NullableErrorObject'
+                required: [success, data, error]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/admin/onboarding-requests/{requestId}/decision:
+    post:
+      tags: [Admin]
+      summary: Aprobar o rechazar solicitud de onboarding
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/RequestIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision:
+                  type: string
+                  enum: [approved, rejected, changes_requested]
+                reason:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Decision aplicada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BasicSuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/admin/catalogs/{catalogName}:
+    get:
+      tags: [Admin]
+      summary: Listar items de catalogo
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: catalogName
+          required: true
+          schema:
+            type: string
+            enum: [sports, rules, booking-statuses]
+      responses:
+        '200':
+          description: Catalogo listado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CatalogItem'
+                  error:
+                    $ref: '#/components/schemas/NullableErrorObject'
+                required: [success, data, error]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Admin]
+      summary: Crear item de catalogo
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: catalogName
+          required: true
+          schema:
+            type: string
+            enum: [sports, rules, booking-statuses]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key, label]
+              properties:
+                key:
+                  type: string
+                  maxLength: 50
+                label:
+                  type: string
+                  maxLength: 100
+      responses:
+        '201':
+          description: Item creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BasicSuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/internal/notifications/dispatch:
+    post:
+      tags: [Notifications]
+      summary: Despachar evento de email transaccional
+      description: Endpoint interno para workers/jobs.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [eventType, bookingId, recipientEmail]
+              properties:
+                eventType:
+                  type: string
+                  enum: [booking_confirmed, booking_cancelled, booking_reminder_24h]
+                bookingId:
+                  type: string
+                  format: uuid
+                recipientEmail:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: Evento procesado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BasicSuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    CourtIdParam:
+      in: path
+      name: courtId
+      required: true
+      schema:
+        type: string
+        format: uuid
+    BookingIdParam:
+      in: path
+      name: bookingId
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PaymentIdParam:
+      in: path
+      name: paymentId
+      required: true
+      schema:
+        type: string
+        format: uuid
+    RequestIdParam:
+      in: path
+      name: requestId
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    BadRequest:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [email, password, fullName]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        password:
+          type: string
+          minLength: 8
+          maxLength: 72
+        fullName:
+          type: string
+          minLength: 2
+          maxLength: 120
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            user:
+              $ref: '#/components/schemas/User'
+            accessToken:
+              type: string
+            refreshToken:
+              type: string
+        error:
+          $ref: '#/components/schemas/NullableErrorObject'
+      required: [success, data, error]
+
+    BasicSuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          additionalProperties: true
+        error:
+          $ref: '#/components/schemas/NullableErrorObject'
+      required: [success, data, error]
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        data:
+          nullable: true
+          type: object
+        error:
+          $ref: '#/components/schemas/ErrorObject'
+      required: [success, data, error]
+
+    ErrorObject:
+      type: object
+      properties:
+        code:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          example: El campo email es invalido
+        details:
+          type: object
+          additionalProperties: true
+      required: [code, message]
+
+    NullableErrorObject:
+      nullable: true
+      allOf:
+        - $ref: '#/components/schemas/ErrorObject'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        fullName:
+          type: string
+        role:
+          type: string
+          enum: [player, owner, admin]
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, email, fullName, role, createdAt]
+
+    Court:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        sport:
+          type: string
+        zone:
+          type: string
+        pricePerHour:
+          type: number
+          format: float
+          minimum: 0
+        complexName:
+          type: string
+      required: [id, name, sport, zone, pricePerHour, complexName]
+
+    CourtSearchResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Court'
+            pagination:
+              type: object
+              properties:
+                page:
+                  type: integer
+                pageSize:
+                  type: integer
+                total:
+                  type: integer
+              required: [page, pageSize, total]
+          required: [items, pagination]
+        error:
+          $ref: '#/components/schemas/NullableErrorObject'
+      required: [success, data, error]
+
+    CourtDetailResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            court:
+              $ref: '#/components/schemas/Court'
+            description:
+              type: string
+            rules:
+              type: array
+              items:
+                type: string
+            photos:
+              type: array
+              items:
+                type: string
+                format: uri
+            address:
+              type: string
+            location:
+              type: object
+              properties:
+                lat:
+                  type: number
+                  format: float
+                lng:
+                  type: number
+                  format: float
+              required: [lat, lng]
+          required: [court, rules, photos, address, location]
+        error:
+          $ref: '#/components/schemas/NullableErrorObject'
+      required: [success, data, error]
+
+    Slot:
+      type: object
+      properties:
+        startAt:
+          type: string
+          format: date-time
+        endAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [available, held, booked]
+      required: [startAt, endAt, status]
+
+    AvailabilityResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            courtId:
+              type: string
+              format: uuid
+            date:
+              type: string
+              format: date
+            slots:
+              type: array
+              items:
+                $ref: '#/components/schemas/Slot'
+          required: [courtId, date, slots]
+        error:
+          $ref: '#/components/schemas/NullableErrorObject'
+      required: [success, data, error]
+
+    CreateBookingRequest:
+      type: object
+      required: [courtId, startAt, endAt]
+      properties:
+        courtId:
+          type: string
+          format: uuid
+        startAt:
+          type: string
+          format: date-time
+        endAt:
+          type: string
+          format: date-time
+
+    Booking:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        courtId:
+          type: string
+          format: uuid
+        playerId:
+          type: string
+          format: uuid
+        startAt:
+          type: string
+          format: date-time
+        endAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [pending_payment, confirmed, cancelled, in_progress, completed, no_show]
+        amountTotal:
+          type: number
+          format: float
+        penaltyAmount:
+          type: number
+          format: float
+        refundAmount:
+          type: number
+          format: float
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - courtId
+        - playerId
+        - startAt
+        - endAt
+        - status
+        - amountTotal
+        - penaltyAmount
+        - refundAmount
+        - createdAt
+
+    BookingResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            booking:
+              $ref: '#/components/schemas/Booking'
+            expiresAt:
+              type: string
+              format: date-time
+          required: [booking, expiresAt]
+        error:
+          $ref: '#/components/schemas/NullableErrorObject'
+      required: [success, data, error]
+
+    CancelBookingResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            bookingId:
+              type: string
+              format: uuid
+            status:
+              type: string
+              enum: [cancelled]
+            policyWindow:
+              type: string
+              enum: [gte_24h, between_6h_24h, lt_6h]
+            penaltyAmount:
+              type: number
+              format: float
+            refundAmount:
+              type: number
+              format: float
+          required: [bookingId, status, policyWindow, penaltyAmount, refundAmount]
+        error:
+          $ref: '#/components/schemas/NullableErrorObject'
+      required: [success, data, error]
+
+    CreatePaymentRequest:
+      type: object
+      required: [bookingId, paymentMethodToken, idempotencyKey]
+      properties:
+        bookingId:
+          type: string
+          format: uuid
+        paymentMethodToken:
+          type: string
+          minLength: 8
+        idempotencyKey:
+          type: string
+          format: uuid
+
+    Payment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        bookingId:
+          type: string
+          format: uuid
+        provider:
+          type: string
+          example: mock
+        providerReference:
+          type: string
+        status:
+          type: string
+          enum: [pending, succeeded, failed, refunded, refund_pending]
+        amount:
+          type: number
+          format: float
+        currency:
+          type: string
+          example: BOB
+        paidAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [id, bookingId, provider, providerReference, status, amount, currency]
+
+    PaymentResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            payment:
+              $ref: '#/components/schemas/Payment'
+            bookingStatus:
+              type: string
+              enum: [pending_payment, confirmed]
+          required: [payment, bookingStatus]
+        error:
+          $ref: '#/components/schemas/NullableErrorObject'
+      required: [success, data, error]
+
+    OnboardingRequestCreate:
+      type: object
+      required: [complexName, address, contactPhone]
+      properties:
+        complexName:
+          type: string
+          maxLength: 120
+        address:
+          type: string
+          maxLength: 200
+        contactPhone:
+          type: string
+          maxLength: 30
+        notes:
+          type: string
+          maxLength: 500
+
+    OnboardingRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        requestedBy:
+          type: string
+          format: uuid
+        complexName:
+          type: string
+        status:
+          type: string
+          enum: [pending_review, approved, rejected, changes_requested]
+        notes:
+          type: string
+          nullable: true
+        reviewedBy:
+          type: string
+          format: uuid
+          nullable: true
+        reviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [id, requestedBy, complexName, status]
+
+    AvailabilityUpdateRequest:
+      type: object
+      required: [weeklyRules]
+      properties:
+        weeklyRules:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [dayOfWeek, startTime, endTime, price]
+            properties:
+              dayOfWeek:
+                type: integer
+                minimum: 0
+                maximum: 6
+              startTime:
+                type: string
+                pattern: '^([01]\\d|2[0-3]):[0-5]\\d$'
+              endTime:
+                type: string
+                pattern: '^([01]\\d|2[0-3]):[0-5]\\d$'
+              price:
+                type: number
+                format: float
+                minimum: 1
+
+    CatalogItem:
+      type: object
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        active:
+          type: boolean
+      required: [key, label, active]
