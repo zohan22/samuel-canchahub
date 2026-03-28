@@ -8,188 +8,470 @@
 # Acceptance Test Plan: STORY-CH-3 - User Login/Logout
 
 **Fecha:** 2026-03-28  
+**QA Engineer:** AI-Generated  
 **Story Jira Key:** CH-3  
-**Epic:** EPIC-CH-1 - Authentication & Account Core
+**Epic:** EPIC-CH-1 - Authentication & Account Core  
+**Status:** Draft
 
 ---
 
 ## Paso 1: Critical Analysis
 
-### Business Context
+### Business Context of This Story
 
-- **Primary Persona:** Diego Rojas (Player).
-- **Secondary Persona:** Carla Mendoza (Capitana).
-- **Business Value:** habilitar acceso seguro y estable a rutas protegidas para continuidad del flujo de reserva.
-- **Journey Link:** Journey 1, Step 1 (login) y continuidad de sesion.
+**User Persona Affected:**
+- **Primary:** Diego Rojas (Player) - necesita iniciar sesion rapido para reservar en minutos.
+- **Secondary:** Carla Mendoza (Capitana) - requiere sesiones estables para coordinar reservas de equipo sin friccion.
 
-### Technical Context
+**Business Value:**
+- **Value Proposition:** habilita acceso seguro y continuo a funcionalidades protegidas.
+- **Business Impact:** reduce abandono por fallos de acceso y protege conversion de busqueda -> reserva pagada.
 
-- **Frontend:** login form, protected route guards, logout action, session handlers.
-- **Backend:** `POST /api/auth/login` + manejo refresh token.
-- **Auth Provider:** Supabase Auth (session lifecycle).
-- **Integration Points:** Frontend <-> API <-> Supabase + session state synchronization.
+**Related User Journey:**
+- Journey: Reserva completa sin friccion (Journey 1).
+- Step: Step 1 (inicio de sesion) y condicion de continuidad de session para pasos posteriores.
 
-### Complexity
+### Technical Context of This Story
 
-- **Overall:** High
-- **Main Risks:** inconsistencia de sesion, refresh fallback incompleto, logout incompleto, errores ambiguos.
+**Frontend:**
+- Components: Login form, auth guard, logout action, session state handlers.
+- Pages/Routes: `/login` y rutas protegidas.
+- State Management: contexto de sesion/tokens en cliente.
 
-### Epic/Story Comment Review Summary
+**Backend:**
+- API Endpoints: `POST /api/auth/login` (definido en OpenAPI).
+- Services: auth service/middleware JWT y refresh handling.
+- Database: lectura de perfil/estado para regla de `active user`.
 
-De los comentarios en Jira CH-3 y epic CH-1:
+**External Services:**
+- Supabase Auth (token lifecycle).
 
-- Debe quedar explicito el criterio de `active user` en AC/story.
-- Debe existir comportamiento seguro cuando refresh token falla: limpiar sesion y reautenticar.
-- Debe definirse rate limiting en login con thresholds verificables.
-- Se confirmo necesidad de error mapping claro entre API y UI.
+**Integration Points:**
+- Frontend <-> Auth API (`POST /api/auth/login`).
+- API <-> Supabase Auth (credential validation y token issuance/refresh).
+- Frontend route guards <-> session state.
+
+### Story Complexity Analysis
+
+- **Overall Complexity:** High
+- **Business logic complexity:** Medium-High (active user y refresh behavior y logout state).
+- **Integration complexity:** High (frontend/api/auth provider/session sync).
+- **Data validation complexity:** Medium (credentials, token expiry states, rate limit behavior).
+- **UI complexity:** Medium (error clarity y protected route denial after logout).
+- **Estimated Test Effort:** High
+- **Rationale:** session lifecycle has multi-state behavior and high business/security impact.
+
+### Epic-Level Context (From Feature Test Plan in Jira)
+
+**Critical Risks Already Identified at Epic Level:**
+- Risk: session inconsistency frontend/backend.
+  - **Relevance to This Story:** impacto directo en login/refresh/logout.
+- Risk: ambiguous auth error messages.
+  - **Relevance to This Story:** login invalid credential UX.
+
+**Integration Points from Epic Analysis:**
+- Frontend <-> Backend API.
+  - **Applies to This Story:** Yes
+  - **If Yes:** login request/response contract and error mapping.
+- Auth API <-> Supabase Auth.
+  - **Applies to This Story:** Yes
+  - **If Yes:** credential validation and token lifecycle.
+
+**Critical Questions Already Asked at Epic Level:**
+- Question: definicion de `active user` para CH-3.
+  - **Status:** Answered (confirmado en comentario de epic; falta detalle operativo en story).
+  - **Impact on This Story:** debe quedar explicitado en AC/refined rules.
+- Question: rate limiting para login.
+  - **Status:** Answered at policy level, threshold exacto pendiente en story/contract.
+  - **Impact on This Story:** afecta test negativos y expected error behavior.
+
+**Test Strategy from Epic:**
+- Test Levels: Unit, Integration, E2E, API.
+- Tools: Playwright, Vitest, Postman/Playwright API.
+- **How This Story Aligns:** CH-3 requiere cobertura en los 4 niveles por lifecycle de session.
+
+**Updates and Clarifications from Epic Refinement:**
+- Confirmado incluir criterio explicito de active user.
+- Confirmado definir y aplicar rate limiting en login.
+
+**Summary: How This Story Fits in Epic:**
+- **Story Role in Epic:** implementa el core de acceso y cierre de sesion para habilitar todo flujo autenticado.
+- **Inherited Risks:** session inconsistency, unclear auth errors.
+- **Unique Considerations:** refresh failure fallback y invalidation post-logout en rutas protegidas.
 
 ---
 
 ## Paso 2: Story Quality Analysis
 
-### Ambiguities/Gaps
+### Ambiguities Identified
 
-- Falta matriz formal de estados de cuenta para `active user` (active/disabled/banned/etc.).
-- Faltan thresholds concretos de rate limiting (intentos/ventana/bloqueo).
-- Logout contract no esta completamente explicitado (client-only vs invalidacion server side).
+**Ambiguity 1:** definicion operativa de `active user` no esta especificada en AC.
+- **Location in Story:** Business Rules / AC.
+- **Question for PO/Dev:** que estados exactos bloquean login (disabled, banned, unverified)?
+- **Impact on Testing:** no se puede validar rechazo exacto por tipo de cuenta.
+- **Suggested Clarification:** agregar matriz de estados de cuenta con comportamiento esperado.
 
-### Edge Cases
+**Ambiguity 2:** rate-limit de login no tiene threshold ni ventana temporal.
+- **Location in Story:** no documentado en AC actuales.
+- **Question for PO/Dev:** intentos maximos por IP/email y tiempo de bloqueo.
+- **Impact on Testing:** cobertura de seguridad incompleta.
+- **Suggested Clarification:** especificar regla y codigo/mensaje de error.
 
-- Refresh token expirado o malformado durante request autenticado.
-- Logout en una pestana con otra pestana abierta en ruta protegida.
-- Burst de intentos fallidos de login.
+### Missing Information / Gaps
 
-### Testability
+**Gap 1:** catalogo de errores de login no definido.
+- **Type:** Acceptance Criteria / API behavior.
+- **Why It's Critical:** UX y contract testing dependen de mensajes/codigos estables.
+- **Suggested Addition:** tabla de `error.code` y `error.message` para 400/401/429.
+- **Impact if Not Added:** inconsistencias FE/BE y baja trazabilidad.
 
-**Status:** Partially testable (base clara, faltan valores operativos para active user y rate limiting).
+**Gap 2:** contrato de logout no explicito en OpenAPI.
+- **Type:** Technical Details.
+- **Why It's Critical:** no hay endpoint formal para validar server-side invalidation (si aplica).
+- **Suggested Addition:** definir contract de logout o aclarar que es client-side only y supabase signOut.
+- **Impact if Not Added:** criterios de pruebas de logout ambiguos.
+
+### Edge Cases NOT Covered in Original Story
+
+**Edge Case 1:** refresh token invalido/expirado.
+- **Scenario:** access token expira y refresh no es usable.
+- **Expected Behavior:** limpiar sesion y requerir login.
+- **Criticality:** High
+- **Action Required:** Add to story y test cases.
+
+**Edge Case 2:** logout en una pestana con otra pestana abierta en ruta protegida.
+- **Scenario:** session context stale en multi-tab.
+- **Expected Behavior:** revalidacion y bloqueo de ruta protegida en siguiente accion.
+- **Criticality:** Medium
+- **Action Required:** Add to test cases y PO/Dev confirmation.
+
+### Testability Validation
+
+**Is this story testable as written?** Partially
+
+**Testability Issues:**
+- Missing error scenario detail (codes/messages).
+- Missing explicit security scenario (rate limiting).
+- Missing explicit inactive-user expected result.
+
+**Recommendations to Improve Testability:**
+- Agregar criterios verificables para active user/rate limit/error contract.
+- Formalizar expected results de refresh-failure y logout cross-tab.
 
 ---
 
 ## Paso 3: Refined Acceptance Criteria
 
-### Scenario 1: Login exitoso
+### Scenario 1: Login exitoso con credenciales validas
 
-- **Given:** usuario activo con credenciales validas.
-- **When:** envia `POST /api/auth/login` con email/password correctos.
-- **Then:** recibe sesion activa (`accessToken`, `refreshToken`, `user`) y acceso a rutas protegidas.
+**Type:** Positive  
+**Priority:** Critical
 
-### Scenario 2: Credenciales invalidas
+- **Given:** usuario activo `diego.player@example.com` existe con password valida.
+- **When:** envia `POST /api/auth/login` con credenciales correctas.
+- **Then:** recibe `200 OK` con `accessToken`, `refreshToken`, `user`; frontend habilita rutas protegidas.
 
-- **Given:** usuario en pantalla login.
-- **When:** envia credenciales incorrectas.
-- **Then:** API responde no autorizado; UI muestra mensaje claro sin leakage.
+### Scenario 2: Rechazo por credenciales invalidas
 
-### Scenario 3: Refresh transparente
+**Type:** Negative  
+**Priority:** High
 
-- **Given:** access token expirado, refresh valido.
-- **When:** usuario realiza request autenticado.
-- **Then:** sesion se refresca automaticamente y la request continua.
+- **Given:** usuario registrado en login.
+- **When:** envia password incorrecta.
+- **Then:** API responde `401 Unauthorized`; UI muestra error accionable sin filtrar datos sensibles; DB/session sin cambios autenticados.
 
-### Scenario 4: Refresh fallido
+### Scenario 3: Refresh transparente en sesion activa
 
-- **Given:** access token expirado, refresh invalido/expirado.
-- **When:** usuario realiza request autenticado.
-- **Then:** sesion se limpia y usuario vuelve a login.
+**Type:** Boundary  
+**Priority:** High
 
-### Scenario 5: Logout seguro
+- **Given:** access token expirado y refresh token valido.
+- **When:** usuario hace request autenticado.
+- **Then:** sesion se refresca automaticamente y request continua con exito.
+
+### Scenario 4: Refresh invalido obliga reautenticacion
+
+**Type:** Edge Case  
+**Priority:** High
+
+- **Given:** access token expirado y refresh token invalido/expirado.
+- **When:** usuario hace request autenticado.
+- **Then:** respuesta `401`, sesion local limpiada, redireccion a login.
+
+### Scenario 5: Logout invalida acceso protegido
+
+**Type:** Positive  
+**Priority:** Critical
 
 - **Given:** usuario autenticado en ruta protegida.
 - **When:** ejecuta logout.
-- **Then:** se limpia sesion local y rutas protegidas quedan bloqueadas hasta nuevo login.
+- **Then:** session context local limpiado y rutas protegidas denegadas hasta nuevo login.
 
-### Scenario 6: Rate limiting de login
+### Scenario 6: Rate limiting por intentos fallidos consecutivos
 
-- **Given:** multiples intentos fallidos en ventana corta.
-- **When:** se supera threshold permitido.
-- **Then:** sistema devuelve respuesta de limitacion con guidance de reintento.
+**Type:** Edge Case  
+**Priority:** Medium-High
+
+- **Given:** multiples intentos fallidos dentro de ventana definida.
+- **When:** supera threshold permitido.
+- **Then:** sistema responde con error de limitacion (`429` esperado) y mensaje claro de reintento.
+- **Note:** pending PO/Dev confirm on exact threshold/window.
 
 ---
 
 ## Paso 4: Test Design
 
-### Coverage
+### Test Coverage Analysis
 
-- **Total:** 16
-- **Positive:** 4
-- **Negative:** 5
-- **Boundary:** 3
-- **Integration:** 2
-- **API Contract:** 2
+**Total Test Cases Needed:** 16
 
-### Parametrization Group 1: Authentication outcomes
+**Breakdown:**
+- Positive: 4
+- Negative: 5
+- Boundary: 3
+- Integration: 2
+- API: 2
 
-| email | password | accountState | expected |
+**Rationale for This Number:** alta complejidad por lifecycle de sesion (login-refresh-logout), seguridad y sincronizacion FE/BE.
+
+### Parametrization Opportunities
+
+**Parametrized Tests Recommended:** Yes
+
+**Parametrized Test Group 1: Validar autenticacion por combinacion de credenciales**
+
+| Email | Password | Account State | Expected Result |
 | --- | --- | --- | --- |
-| diego.player@example.com | ValidPass1! | active | success session |
-| diego.player@example.com | WrongPass1! | active | invalid credentials |
-| invalid-email | ValidPass1! | n/a | validation error |
-| disabled.player@example.com | ValidPass1! | inactive | account denied |
+| diego.player@example.com | ValidPass123! | active | 200 + session |
+| diego.player@example.com | WrongPass123! | active | 401 invalid credentials |
+| invalid-email | ValidPass123! | n/a | 400 validation error |
+| disabled.player@example.com | ValidPass123! | inactive | 401/403 account inactive |
 
-### Parametrization Group 2: Token states
+**Total Tests from Parametrization:** 4  
+**Benefit:** reduce duplicacion y cubre matrix principal de auth outcome.
 
-| accessToken | refreshToken | expected |
-| --- | --- | --- |
-| valid | valid | request success |
-| expired | valid | transparent refresh + success |
-| expired | expired | force relogin |
-| expired | malformed | force relogin |
+**Parametrized Test Group 2: Validar comportamiento de token states**
+
+| Access Token | Refresh Token | Trigger | Expected Result |
+| --- | --- | --- | --- |
+| valid | valid | authenticated request | 200 no refresh |
+| expired | valid | authenticated request | silent refresh + 200 |
+| expired | expired | authenticated request | 401 + relogin required |
+| expired | malformed | authenticated request | 401 + clear session |
+
+**Total Tests from Parametrization:** 4
 
 ---
 
 ## Test Outlines
 
-1. Validar login exitoso con credenciales validas.
-2. Validar rechazo por password incorrecto.
-3. Validar rechazo para usuario inactivo.
-4. Validar mensaje de error accionable en login fallido.
-5. Validar refresh transparente con refresh token valido.
-6. Validar refresh fallido obliga reautenticacion.
-7. Validar logout bloquea ruta protegida inmediatamente.
-8. Validar bloqueo de ruta protegida despues de refresh manual del browser.
-9. Validar comportamiento de session en multi-tab tras logout.
-10. Validar rate limiting tras intentos fallidos consecutivos.
-11. Validar idempotencia de logout repetido.
-12. Validar contrato de exito de login.
-13. Validar contrato de error de login.
-14. Validar contrato de respuesta en refresh fallido.
-15. Validar visibilidad y foco de errores en UI login.
-16. Validar no-leakage de datos sensibles en errores.
+### Validar login exitoso con credenciales validas
+
+**Related Scenario:** Scenario 1  
+**Type:** Positive  
+**Priority:** Critical  
+**Test Level:** UI + API  
+**Parametrized:** Yes (Group 1)
+
+**Preconditions:**
+- Usuario activo existe en auth con email `diego.player@example.com`.
+- Ruta `/login` accesible.
+
+**Test Steps:**
+1. Ir a `/login`.
+2. Ingresar email/password validos.
+3. Submit login.
+4. Navegar a ruta protegida.
+
+**Expected Result:**
+- **UI:** redireccion exitosa; estado autenticado visible.
+- **API Response:** `200 OK` con `data.user`, `data.accessToken`, `data.refreshToken`.
+- **System State:** sesion activa en cliente.
+
+**Test Data:**
+
+```json
+{
+  "input": {
+    "email": "diego.player@example.com",
+    "password": "ValidPass123!"
+  },
+  "user": {
+    "role": "player",
+    "state": "active"
+  }
+}
+```
+
+### Validar error de autenticacion cuando password es incorrecto
+
+**Related Scenario:** Scenario 2  
+**Type:** Negative  
+**Priority:** High  
+**Test Level:** API + UI  
+**Parametrized:** Yes (Group 1)
+
+**Expected Result:**
+- Status `401 Unauthorized`.
+- Error auth visible y no ambiguo.
+- Sin creacion de sesion autenticada.
+
+### Validar refresh transparente con access token expirado y refresh valido
+
+**Related Scenario:** Scenario 3  
+**Type:** Boundary  
+**Priority:** High  
+**Test Level:** Integration  
+**Parametrized:** Yes (Group 2)
+
+**Expected Result:**
+- Request final `200`.
+- Token actualizado en contexto de sesion.
+- Usuario no redirigido a login.
+
+### Validar reautenticacion obligatoria con refresh token invalido
+
+**Related Scenario:** Scenario 4  
+**Type:** Edge Case  
+**Priority:** High  
+**Test Level:** Integration/API  
+**Parametrized:** Yes (Group 2)
+
+**Expected Result:**
+- Status `401`.
+- Session local cleared.
+- Redirect a `/login` en siguiente navegacion protegida.
+
+### Validar logout invalida rutas protegidas inmediatamente
+
+**Related Scenario:** Scenario 5  
+**Type:** Positive  
+**Priority:** Critical  
+**Test Level:** UI/E2E  
+**Parametrized:** No
+
+**Expected Result:**
+- Logout limpia contexto local.
+- Cualquier acceso posterior a ruta protegida requiere nuevo login.
+
+### Validar limitacion de intentos al exceder umbral de login fallido
+
+**Related Scenario:** Scenario 6  
+**Type:** Edge Case  
+**Priority:** Medium-High  
+**Test Level:** API/Security  
+**Parametrized:** No
+
+**Expected Result:**
+- Error de rate-limit (`429` esperado).
+- Mensaje de espera/reintento.
+- **Needs PO/Dev threshold confirmation.**
 
 ---
 
 ## Integration Test Cases
 
-### Integration 1: Frontend <-> API login flow
+### Integration Test 1: Frontend <-> Backend login contract
 
-- **Expected:** request/response coherente con contrato y estado de UI consistente.
+- **Integration Point:** Frontend -> `POST /api/auth/login`
+- **Type:** Integration
+- **Priority:** High
 
-### Integration 2: API <-> Supabase token lifecycle
+**Contract Validation:**
+- Request format matches OpenAPI spec: Yes
+- Response format matches OpenAPI spec: Yes
+- Status codes match spec (200/400/401): Yes
 
-- **Expected:** refresh exitoso cuando corresponde y fallback seguro cuando falla.
+### Integration Test 2: Session refresh lifecycle via Supabase Auth
+
+- **Integration Point:** Backend/API -> Supabase Auth token lifecycle
+- **Type:** Integration
+- **Priority:** High
+
+**Expected Result:**
+- Expired access + valid refresh => renewed session.
+- Expired access + invalid refresh => 401 + forced re-login.
+
+---
+
+## Edge Cases Summary
+
+| Edge Case | Covered in Original Story? | Added to Refined AC? | Test Case | Priority |
+| --- | --- | --- | --- | --- |
+| Refresh token invalid/expired | No | Yes (Scenario 4) | Validar reautenticacion obligatoria | High |
+| Logout cross-tab sync | No | Pending confirmation | Validar logout invalida rutas protegidas | Medium |
+| Rate limiting login | No | Yes (Scenario 6) | Validar limitacion de intentos | Medium-High |
 
 ---
 
 ## Test Data Summary
 
-- **Valid data:** usuario activo con credenciales validas.
-- **Invalid data:** wrong password, malformed email, inactive account.
-- **Boundary data:** tokens en estado valid/expired/invalid.
-- **Edge data:** multi-tab session behavior, burst login attempts.
-- **Cleanup:** cerrar sesion y limpiar datos de prueba persistentes.
+| Data Type | Count | Purpose | Examples |
+| --- | --- | --- | --- |
+| Valid data | 3 | Positive tests | valid email/password, active user |
+| Invalid data | 4 | Negative tests | wrong password, malformed email, inactive account |
+| Boundary values | 3 | Boundary tests | expired access + valid refresh, expired/expired token state |
+| Edge case data | 3 | Edge tests | multi-tab logout, burst failed attempts |
+
+**Data Generation Strategy:**
+- Static: cuentas controladas para active/inactive y token state.
+- Dynamic (Faker): emails de pruebas negativas no persistentes.
+- Cleanup: sesiones y artefactos de test limpiados por corrida.
 
 ---
 
-## Risks and Questions
+## Related Documentation
 
-- **Open question:** catalogo definitivo de estados para `active user`.
-- **Open question:** threshold exacto de rate limiting (cantidad y ventana temporal).
-- **Mitigation:** bloquear cierre QA final hasta documentar ambos valores en story/contract.
+- Story: `.context/PBI/epics/EPIC-CH-1-auth-account-core/stories/STORY-CH-3-user-login-logout/story.md`
+- Epic: `.context/PBI/epics/EPIC-CH-1-auth-account-core/epic.md`
+- Feature Test Plan: `.context/PBI/epics/EPIC-CH-1-auth-account-core/feature-test-plan.md`
+- SRS: `.context/SRS/functional-specs.md` (FR-002)
+- API: `.context/SRS/api-contracts.yaml`
 
 ---
 
-## Related Docs
+## Test Execution Tracking
 
-- `.context/PBI/epics/EPIC-CH-1-auth-account-core/stories/STORY-CH-3-user-login-logout/story.md`
-- `.context/PBI/epics/EPIC-CH-1-auth-account-core/feature-test-plan.md`
-- `.context/SRS/functional-specs.md`
-- `.context/SRS/api-contracts.yaml`
+**Test Execution Date:** TBD  
+**Environment:** Staging  
+**Executed By:** TBD
+
+**Results:**
+- Total Tests: 16
+- Passed: TBD
+- Failed: TBD
+- Blocked: TBD
+
+**Bugs Found:**
+- TBD
+
+**Sign-off:** TBD
+
+---
+
+## Action Required
+
+**@ProductOwner:**
+- Confirmar comportamiento esperado para `active user` por estado.
+- Confirmar comportamiento esperado para logout cross-tab.
+- Validar escenarios agregados de edge case.
+
+**@DevLead:**
+- Confirmar contract/error catalog para login (400/401/429).
+- Definir threshold/ventana exacta de rate limiting.
+- Confirmar implementacion de refresh-failure fallback.
+
+**@QATeam:**
+- Revisar completitud de cobertura de session lifecycle.
+- Preparar datos de token-state para integration tests.
+- Preparar ejecucion en staging de escenarios criticos.
+
+**Next Steps:**
+1. Resolver preguntas criticas de negocio/tecnicas en este thread.
+2. Ajustar AC finales de CH-3 con respuestas PO/Dev.
+3. Ejecutar implementacion solo con criterios cerrados.
+
+---
+
+**Documentation:** Full test cases mirror at:
+`.context/PBI/epics/EPIC-CH-1-auth-account-core/stories/STORY-CH-3-user-login-logout/acceptance-test-plan.md`
