@@ -102,14 +102,16 @@
 **Questions for PO:**
 
 - Politica completa de password (ademas de longitud 8-72)?
-  - **Status:** ⏳ Pending
-  - **Impact on This Story:** define set exacto de pruebas negativas y mensajes de error.
+  - **Status:** ✅ Answered
+  - **Answer:** password de 8-30 caracteres con minimo 1 mayuscula, 1 minuscula, 1 numero y 1 caracter especial/simbolo.
+  - **Impact on This Story:** permite cerrar criterios de validacion, mensajes de error y datasets de boundary.
 
 **Questions for Dev:**
 
 - Catalogo canonico de `error.code` para auth.
-  - **Status:** ⏳ Pending
-  - **Impact on This Story:** necesario para validar mapeo UX estable y no ambiguo.
+  - **Status:** ✅ Proposed Default Applied
+  - **Answer:** se adopta contrato uniforme de errores con `success=false`, `data=null`, `error={code,message,field?,details?}`.
+  - **Impact on This Story:** mapeo estable FE/API, assertions reproducibles y menor ambiguedad de UX.
 
 **Test Strategy from Epic:**
 
@@ -119,7 +121,9 @@
 
 **Updates and Clarifications from Epic Refinement:**
 
-- No hay respuestas adicionales de PO/Dev posteriores al Feature Test Plan en comentarios del epic.
+- Se confirma policy de password para CH-2: 8-30 + complejidad (mayuscula/minuscula/numero/simbolo).
+- Se confirma normalizacion: trim en inputs, email lowercase + unicidad case-insensitive.
+- Se adopta comportamiento de idempotencia: si cuenta ya existe, responder error uniforme de duplicado sin crear nuevos registros.
 
 **Summary: How This Story Fits in Epic:**
 
@@ -236,7 +240,7 @@
 **Priority:** High
 
 - **Given:** visitante en registro
-- **When:** envia password fuera de policy
+- **When:** envia password fuera de policy (8-30, mayuscula, minuscula, numero, simbolo)
 - **Then:** API responde `400 Bad Request`
 - **And:** UI muestra requisitos de password
 - **And:** no se crea usuario/profile
@@ -247,8 +251,8 @@
 **Priority:** High
 
 - **Given:** visitante en registro
-- **When:** envia valores 7,8,72,73 para password y 1,2,120,121 para fullName
-- **Then:** solo 8-72 password y 2-120 fullName son aceptados
+- **When:** envia valores 7,8,30,31 para password y 1,2,120,121 para fullName
+- **Then:** solo 8-30 password y 2-120 fullName son aceptados
 
 ### Scenario 5: Consistencia atomica Auth + Profile
 
@@ -268,8 +272,8 @@
 
 - **Given:** valores con espacios y/o variacion de casing en email
 - **When:** usuario envia registro
-- **Then:** sistema normaliza y evalua unicidad correctamente
-- **⚠️ NOTE:** needs PO/Dev confirmation for canonical normalization rules
+- **Then:** sistema aplica trim, email en lowercase, unicidad case-insensitive y validacion case-insensitive para fullName
+- **And:** para email ya existente el sistema retorna mensaje uniforme de cuenta existente
 
 ---
 
@@ -303,7 +307,7 @@
 | diego+1@example.com | Passw0rd! | Diego Rojas | 201 Created |
 | invalid-email | Passw0rd! | Diego Rojas | 400 INVALID_EMAIL |
 | diego+2@example.com | short7 | Diego Rojas | 400 INVALID_PASSWORD |
-| diego+3@example.com | A23456789012345678901234567890123456789012345678901234567890123456789012! | Diego Rojas | 400 INVALID_PASSWORD |
+| diego+3@example.com | A234567890123456789012345678901! | Diego Rojas | 400 INVALID_PASSWORD |
 | diego+4@example.com | Passw0rd! | D | 400 INVALID_FULLNAME |
 | diego+5@example.com | Passw0rd! | Nombre de 121 caracteres xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx | 400 INVALID_FULLNAME |
 
@@ -391,7 +395,7 @@ Formato aplicado: `Validar <CORE> <CONDITIONAL>`
 **Test Level:** API  
 **Parametrized:** ✅ Yes (Group 1)
 
-**Expected Result:** `72` acepta, `73` rechaza.
+**Expected Result:** `30` acepta, `31` rechaza.
 
 ---
 
@@ -427,7 +431,7 @@ Formato aplicado: `Validar <CORE> <CONDITIONAL>`
 **Test Level:** API  
 **Parametrized:** ❌ No
 
-**Expected Result:** `Test@Mail.com` y `test@mail.com` tratados como duplicado.
+**Expected Result:** `Test@Mail.com` y `test@mail.com` tratados como duplicado con mensaje uniforme de cuenta existente.
 
 ---
 
@@ -452,6 +456,66 @@ Formato aplicado: `Validar <CORE> <CONDITIONAL>`
 **Parametrized:** ❌ No
 
 **Expected Result:** solo una cuenta creada; respuesta consistente al segundo submit.
+
+---
+
+## ✅ Clarifications Resolved (2026-03-28)
+
+### CH-2 Decisions Confirmed
+
+- Password policy final: 8-30, minimo 1 mayuscula, 1 minuscula, 1 numero, 1 simbolo.
+- Input normalization: trim para campos de texto; email lowercase; unicidad case-insensitive para email.
+- FullName: comparacion case-insensitive para validaciones funcionales.
+- Duplicate behavior: si cuenta ya existe, no crear nuevos registros y devolver mensaje correspondiente uniforme.
+
+### Error Contract (Default Applied - Good Practices)
+
+- Status: `400 Bad Request` para errores de validacion y duplicados en registro.
+- Response shape:
+
+```json
+{
+  "success": false,
+  "data": null,
+  "error": {
+    "code": "INVALID_PASSWORD",
+    "message": "La contrasena debe tener entre 8 y 30 caracteres e incluir mayuscula, minuscula, numero y simbolo.",
+    "field": "password",
+    "details": {
+      "minLength": 8,
+      "maxLength": 30,
+      "requiredRules": [
+        "uppercase",
+        "lowercase",
+        "number",
+        "symbol"
+      ]
+    }
+  }
+}
+```
+
+- Canonical `error.code` para CH-2:
+  - `INVALID_EMAIL`
+  - `INVALID_PASSWORD`
+  - `INVALID_FULLNAME`
+  - `EMAIL_ALREADY_REGISTERED`
+
+### Atomic Consistency Strategy (Default Applied)
+
+- Flujo recomendado:
+  1) validar payload
+  2) crear usuario en Auth
+  3) crear profile en DB
+  4) si falla paso 3, ejecutar compensacion borrando usuario Auth creado en paso 2
+- Resultado esperado: nunca dejar usuario huerfano en Auth sin profile asociado.
+
+### CH-3 / CH-4 Defaults Accepted (PO/Dev)
+
+- CH-3: aplicar definicion explicita de active user.
+- CH-4: confirmar TTL/single-use para reset token.
+- CH-4: mantener respuesta uniforme anti-enumeracion.
+- CH-3/CH-4: definir y aplicar rate limiting.
 
 ---
 
